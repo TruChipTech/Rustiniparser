@@ -1,0 +1,25 @@
+# Cross-compilation linker settings.
+#
+# Uncomment the block for a target once its toolchain is installed. Each needs:
+#   1. the Rust std for the target:  rustup target add <triple>
+#   2. a cross linker/gcc for that triple (the `linker = ...` line below)
+#
+# Then build with, e.g.:
+#   cargo build --release --target aarch64-unknown-linux-gnu
+#   cargo build --profile min-size --target thumbv7em-none-eabihf
+#
+# Pure-Rust crates like this one usually just work with `cross` too:
+#   cargo install cross
+#   cross build --release --target aarch64-unknown-linux-musl
+
+# [target.aarch64-unknown-linux-gnu]
+# linker = "aarch64-linux-gnu-gcc"
+
+# [target.armv7-unknown-linux-gnueabihf]
+# linker = "arm-linux-gnueabihf-gcc"
+
+# [target.aarch64-unknown-linux-musl]
+# linker = "aarch64-linux-musl-gcc"
+
+# [target.x86_64-pc-windows-gnu]
+# linker = "x86_64-w64-mingw32-gcc"
