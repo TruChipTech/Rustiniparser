@@ -1,7 +1,7 @@
 //! # rustiniparser
 //!
 //! Author: Anand <truchipinfo@gmail.com>
-//! Version: V1.0.0
+//! Version: V1.0.1
 //!
 //! A tiny **in-memory INI store**. You feed it INI text, it parses everything
 //! into a [`Document`], and then you:
@@ -50,12 +50,16 @@
 //!
 //! Lookups are **case-sensitive** for section and key names.
 
-#![forbid(unsafe_code)]
+// The pure-Rust core below contains no `unsafe`. The only `unsafe` in the
+// crate lives in the C-ABI layer (`ffi` module), which is required to expose
+// the C/C++ entry points and is annotated there.
 
 use std::fmt;
 
+pub mod ffi;
+
 /// Library version string.
-pub const VERSION: &str = "V1.0.0";
+pub const VERSION: &str = "V1.0.1";
 
 /// Result / error codes for parsing and mutation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

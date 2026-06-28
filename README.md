@@ -10,7 +10,11 @@ everything into a `Document`, and then you:
 It uses `std` collections, so a document grows as needed and keys/values may be
 of any length. Fixed-capacity behaviour is available opt-in via `Limits`. The
 parser does no allocation while scanning lines and allocates only the strings it
-stores, so loading is fast. Zero dependencies, `#![forbid(unsafe_code)]`.
+stores, so loading is fast. Zero dependencies; the pure-Rust core contains no
+`unsafe` (the only `unsafe` lives in the optional C ABI layer).
+
+It can also be linked from **C and C++** via a stable C ABI — see
+[Using it from C / C++](#using-it-from-c--c).
 
 ---
 
@@ -127,6 +131,85 @@ cross build --release --target aarch64-unknown-linux-gnu
 
 ---
 
+## Using it from C / C++
+
+The crate exposes a stable **C ABI** so it can be linked from C and C++. A
+`cargo build --release` produces, alongside the Rust `rlib`, both linkable
+libraries (the `[lib] crate-type` is `["rlib", "staticlib", "cdylib"]`):
+
+| Artifact | Kind | Link as |
+|---|---|---|
+| `target/release/librustiniparser.a` | static (`staticlib`) | bundle into your binary |
+| `target/release/librustiniparser.so` | shared (`cdylib`) | `.dll` on Windows, `.dylib` on macOS |
+
+The matching header is [include/rustiniparser.h](include/rustiniparser.h).
+
+```c
+#include "rustiniparser.h"
+#include <stdio.h>
+
+int main(void) {
+    IniDocument *doc = ini_parse("[network]\nhost = example.com\nport = 8080\n");
+    if (!doc) return 1;
+
+    char host[128];
+    ini_get_string(doc, "network", "host", "localhost", host, sizeof host);
+    printf("host = %s, port = %lld\n",
+           host, ini_get_int(doc, "network", "port", 80));
+
+    ini_set_int(doc, "network", "port", 9090);   // modify
+    ini_set(doc, "network", "gateway", "10.0.0.1"); // add
+    ini_free(doc);                                // release the handle
+    return 0;
+}
+```
+
+Compile against either library:
+
+```sh
+cargo build --release         # produces the .a and .so
+
+# static (no runtime search path needed)
+cc -Iinclude app.c target/release/librustiniparser.a -lpthread -ldl -lm -o app
+
+# shared
+cc -Iinclude app.c -Ltarget/release -lrustiniparser -o app
+LD_LIBRARY_PATH=target/release ./app
+```
+
+### C ABI conventions
+
+- An `IniDocument *` is opaque; create with `ini_new()` / `ini_parse()` and
+  release **exactly once** with `ini_free()` (`ini_free(NULL)` is a no-op).
+- Use `""` (empty string) for the global section.
+- All string arguments are NUL-terminated UTF-8 and only borrowed for the call.
+- `ini_get_string` copies into a caller-supplied buffer (it never returns a
+  pointer into library-owned memory) and always NUL-terminates; its return is
+  the full value length, so a value `>= out_len` was truncated. Pass
+  `out = NULL, out_len = 0` to query the required length.
+- Mutating functions return a status code: `INI_OK` (0) or one of
+  `INI_ERR_SYNTAX`, `INI_ERR_TOO_LONG`, `INI_ERR_FULL`, `INI_ERR_NOT_FOUND`,
+  `INI_ERR_NULL`, `INI_ERR_UTF8`.
+
+### Examples & tests
+
+Runnable C and C++ samples plus an assertion test harness live under
+[examples/c/](examples/c/), [examples/cpp/](examples/cpp/) and
+[tests/ffi/](tests/ffi/). A `Makefile` builds the Rust libraries and then
+compiles and runs everything:
+
+```sh
+cd tests/ffi
+make test               # build + run the C and C++ assertion tests (static link)
+make run                # build + run the C and C++ samples
+make test LINK=shared   # link against the .so instead
+```
+
+The C++ sample wraps the handle in a small RAII `ini::Document` type that frees
+itself and offers `std::string`-based getters.
+
+---
+
 ## Accepted INI syntax
 
 - `[sections]`, plus a **global section** (`""`) for keys before any header
@@ -217,9 +300,14 @@ let mut doc = Document::with_limits(Limits {
 
 ```
 src/lib.rs              library (parser + typed store)
-examples/ini_demo.rs    load / get / modify / add demo
+src/ffi.rs              C ABI layer (staticlib / cdylib entry points)
+include/rustiniparser.h C/C++ header
+examples/ini_demo.rs    load / get / modify / add demo (Rust)
+examples/c/             C usage sample
+examples/cpp/           C++ usage sample (RAII wrapper)
 tests/integration.rs    integration tests
 tests/fixtures/         sample .ini files
+tests/ffi/              C/C++ samples, tests and a Makefile
 ```
 
 ---

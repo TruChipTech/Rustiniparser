@@ -1,6 +1,6 @@
 [package]
 name = "rustiniparser"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.63"
 authors = ["Anand <truchipinfo@gmail.com>"]
@@ -14,6 +14,9 @@ categories = ["parsing", "config"]
 [lib]
 name = "rustiniparser"
 path = "src/lib.rs"
+# rlib: link from Rust. staticlib (.a) and cdylib (.so/.dll/.dylib): link from
+# C/C++ via the C ABI exposed in `src/ffi.rs` (header: include/rustiniparser.h).
+crate-type = ["rlib", "staticlib", "cdylib"]
 
 [[example]]
 name = "ini_demo"
